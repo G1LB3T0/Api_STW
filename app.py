@@ -1,8 +1,6 @@
 from flask import Flask, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_marshmallow import Marshmallow
-import os
-
 
 app = Flask(__name__)
 
@@ -12,39 +10,80 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 ma = Marshmallow(app)
 
-class Test(db.Model):
-    id = db.Column(db.Integer, primary_key = True)
-    nombre = db.Column(db.String, unique = True)
+class Incident(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    reporter = db.Column(db.String, nullable=False)
+    description = db.Column(db.String, nullable=False)
+    status = db.Column(db.String, nullable=False, default='pendiente')
+    created_at = db.Column(db.DateTime, server_default=db.func.now())#Esta funcion es algo rara, la investigue para que ponga la fecha que tenga la maquina
 
-    def __init__(self, nombre):
-        self.nombre = nombre
+    def __init__(self, reporter, description, status='pendiente'):
+        self.reporter = reporter
+        self.description = description
+        self.status = status
 
-class ProductSchema(ma.Schema):
+class IncidentSchema(ma.Schema):
     class Meta:
-        fields = ('id', 'nombre')
+        fields = ('id', 'reporter', 'description', 'status', 'created_at')
 
-product_schema = ProductSchema()
-products_schema = ProductSchema(many=True)
-
-
+incident_schema = IncidentSchema()
+incidents_schema = IncidentSchema(many=True)
 
 @app.route('/', methods=['GET'])
-def get_welcome_screen():
-   return jsonify({
-        'name' : 'Luis'
-   })
+def get_welcome():
+    return jsonify({'message': 'API de incidentes'})
 
-@app.route('/test', methods=['POST'])
-def post_test():
+@app.route('/incidents', methods=['POST'])
+def create_incident():
+    reporter = request.json.get('reporter')
+    description = request.json.get('description')
 
-    nombre = request.json['nombre']
-    
-    new_name = Test(nombre)
+    if not reporter:
+        return jsonify({'error': 'El campo "reporter" es obligatorio'}), 400
+    if not description or len(description) < 10:
+        return jsonify({'error': 'La descripción debe tener al menos 10 caracteres'}), 400
 
-    db.session.add(new_name)
+    new_incident = Incident(reporter=reporter, description=description)
+    db.session.add(new_incident)
     db.session.commit()
 
-    return product_schema.jsonify(new_name)
+    return incident_schema.jsonify(new_incident), 201
+
+@app.route('/incidents', methods=['GET'])
+def get_incidents():
+    all_incidents = Incident.query.all()
+    return incidents_schema.jsonify(all_incidents)
+
+@app.route('/incidents/<int:id>', methods=['GET'])
+def get_incident(id):
+    incident = Incident.query.get(id)
+    if not incident:
+        return jsonify({'error': 'Incidente no encontrado'}), 404
+    return incident_schema.jsonify(incident)
+
+@app.route('/incidents/<int:id>', methods=['PUT'])
+def update_incident(id):
+    incident = Incident.query.get(id)
+    if not incident:
+        return jsonify({'error': 'Incidente no encontrado'}), 404
+
+    status = request.json.get('status')
+    if status not in ['pendiente', 'en proceso', 'resuelto']:
+        return jsonify({'error': 'Estado inválido. Debe ser: pendiente, en proceso o resuelto'}), 400
+
+    incident.status = status
+    db.session.commit()
+    return incident_schema.jsonify(incident)
+
+@app.route('/incidents/<int:id>', methods=['DELETE'])
+def delete_incident(id):
+    incident = Incident.query.get(id)
+    if not incident:
+        return jsonify({'error': 'Incidente no encontrado'}), 404
+
+    db.session.delete(incident)
+    db.session.commit()
+    return jsonify({'message': 'Incidente eliminado correctamente'})
 
 if __name__ == '__main__':
-    app.run(debug=True, port='3001')
+    app.run(debug=True, port=3001)
