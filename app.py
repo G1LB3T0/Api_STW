@@ -1,8 +1,12 @@
+import os
 from flask import Flask, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_marshmallow import Marshmallow
+from flask_cors import CORS
 
 app = Flask(__name__)
+
+CORS(app)
 
 app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://postgres:paris12ysolo12@localhost:5432/api'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
@@ -22,16 +26,17 @@ class Incident(db.Model):
         self.description = description
         self.status = status
 
-class IncidentSchema(ma.Schema):
+class IncidentSchema(ma.SQLAlchemyAutoSchema):
     class Meta:
-        fields = ('id', 'reporter', 'description', 'status', 'created_at')
+        model = Incident
+        load_instance = True
 
 incident_schema = IncidentSchema()
 incidents_schema = IncidentSchema(many=True)
 
 @app.route('/', methods=['GET'])
 def get_welcome():
-    return jsonify({'message': 'API de incidentes'})
+    return jsonify({'message': 'la API funca bien :)'})
 
 @app.route('/incidents', methods=['POST'])
 def create_incident():
@@ -86,4 +91,4 @@ def delete_incident(id):
     return jsonify({'message': 'Incidente eliminado correctamente'})
 
 if __name__ == '__main__':
-    app.run(debug=True, port=3001)
+    app.run(host='0.0.0.0', debug=True, port=3001)

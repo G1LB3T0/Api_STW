@@ -1,0 +1,2 @@
+#ignorar el cache del pytohon
+__pycache__/
